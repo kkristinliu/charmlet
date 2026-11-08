@@ -18,8 +18,9 @@ if (existsSync(envFile)) {
 }
 
 const environment = process.env.PAYPAL_ENV === 'live' ? 'live' : 'sandbox';
-const clientId = process.env.PAYPAL_CLIENT_ID || '';
-const clientSecret = process.env.PAYPAL_CLIENT_SECRET || '';
+const cleanCredential = value => String(value || '').trim().replace(/^(['"])(.*)\1$/, '$2').trim();
+const clientId = cleanCredential(process.env.PAYPAL_CLIENT_ID);
+const clientSecret = cleanCredential(process.env.PAYPAL_CLIENT_SECRET);
 const openaiApiKey = process.env.OPENAI_API_KEY || '';
 const openaiModel = process.env.OPENAI_MODEL || 'gpt-6-luna';
 const geminiApiKey = process.env.GEMINI_API_KEY || '';

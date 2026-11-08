@@ -80,7 +80,7 @@ function PayPalCheckout({items,onPaid}){
       try{
         await loadSdk();
         if(cancelled)return;
-        const sdk=await window.paypal.createInstance({clientId:config.clientId,components:['paypal-payments']});
+        const sdk=await window.paypal.createInstance({clientId:String(config.clientId||'').trim()，components:['paypal-payments']});
         const eligibility=await sdk.findEligibleMethods();
         if(!eligibility.isEligible('paypal'))throw new Error('PayPal checkout is not available for this account or browser.');
         const button=document.createElement('paypal-button');
