@@ -3,7 +3,8 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "scripts": { "dev": "node scripts/dev.js", "build": "vite build", "preview": "vite preview" },
+  "packageManager": "pnpm@12.16.1",
+  "scripts": { "dev": "node scripts/dev.js", "build": "vite build", "start": "node server/paypal-api.js", "preview": "vite preview" },
   "dependencies": {
     "@react-three/drei": "^9.122.0",
     "@react-three/fiber": "^8.17.10",

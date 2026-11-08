@@ -1,11 +1,13 @@
 import { createServer } from 'node:http';
 import { randomUUID } from 'node:crypto';
-import { readFileSync, existsSync } from 'node:fs';
+import { createReadStream, readFileSync, existsSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { BASES, GEM_COLORS, GEM_CATALOG, RETIRED_GEM_COLORS, validateDesign } from '../src/catalog.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const production = process.env.NODE_ENV === 'production';
+const distRoot = path.join(root, 'dist');
 const envFile = path.join(root, '.env.local');
 if (existsSync(envFile)) {
   for (const line of readFileSync(envFile, 'utf8').split(/\r?\n/)) {
@@ -29,6 +31,44 @@ const MAX_REQUEST_BYTES = 1_000_000;
 const respond = (response, status, body) => {
   response.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
   response.end(JSON.stringify(body));
+};
+
+const clientMimeTypes = {
+  '.css': 'text/css; charset=utf-8',
+  '.gif': 'image/gif',
+  '.html': 'text/html; charset=utf-8',
+  '.ico': 'image/x-icon',
+  '.jpeg': 'image/jpeg',
+  '.jpg': 'image/jpeg',
+  '.js': 'text/javascript; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
+  '.png': 'image/png',
+  '.svg': 'image/svg+xml',
+  '.webp': 'image/webp',
+  '.woff': 'font/woff',
+  '.woff2': 'font/woff2',
+};
+
+const serveClient = (request, response, pathname) => {
+  if (!existsSync(distRoot)) return respond(response, 503, { error: 'The website build is missing. Run the production build before starting the service.' });
+  const decodedPath = decodeURIComponent(pathname);
+  const relativePath = decodedPath.replace(/^\/+/, '') || 'index.html';
+  const requestedFile = path.resolve(distRoot, relativePath);
+  if (!requestedFile.startsWith(distRoot + path.sep)) return respond(response, 400, { error: 'Invalid path.' });
+
+  let filePath = requestedFile;
+  if (!existsSync(filePath) || !statSync(filePath).isFile()) {
+    if (path.extname(decodedPath)) return respond(response, 404, { error: 'Not found.' });
+    filePath = path.join(distRoot, 'index.html');
+  }
+
+  const isHtml = path.basename(filePath) === 'index.html';
+  response.writeHead(200, {
+    'Content-Type': clientMimeTypes[path.extname(filePath).toLowerCase()] || 'application/octet-stream',
+    'Cache-Control': isHtml ? 'no-cache' : 'public, max-age=31536000, immutable',
+  });
+  if (request.method === 'HEAD') return response.end();
+  createReadStream(filePath).pipe(response);
 };
 
 const readJson = request => new Promise((resolve, reject) => {
@@ -361,6 +401,9 @@ const server = createServer(async (request, response) => {
       const payment = await handleCapture(decodeURIComponent(captureMatch[1]));
       return respond(response, 200, payment);
     }
+    if (production && ['GET', 'HEAD'].includes(request.method) && !url.pathname.startsWith('/api')) {
+      return serveClient(request, response, url.pathname);
+    }
     return respond(response, 404, { error: 'Not found.' });
   } catch (error) {
     const status = error.status || 400;
@@ -369,5 +412,6 @@ const server = createServer(async (request, response) => {
   }
 });
 
-const port = Number(process.env.PAYPAL_API_PORT || 3001);
-server.listen(port, '127.0.0.1', () => console.log('PayPal API ready on http://127.0.0.1:' + port));
+const port = Number(process.env.PORT || process.env.PAYPAL_API_PORT || 3001);
+const host = production ? '0.0.0.0' : '127.0.0.1';
+server.listen(port, host, () => console.log('CHARMLET server ready on http://' + host + ':' + port));
